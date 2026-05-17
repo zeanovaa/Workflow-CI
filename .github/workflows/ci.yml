@@ -6,6 +6,9 @@ on:
       - main
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   mlflow-ci:
     runs-on: ubuntu-latest
@@ -13,6 +16,8 @@ jobs:
     steps:
       - name: Run actions/checkout@v3
         uses: actions/checkout@v3
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Python 3.12.7
         uses: actions/setup-python@v4
@@ -60,15 +65,12 @@ jobs:
             cp -r "$MODEL_SRC" artifacts/model_${RUN_ID:0:8}
             git add artifacts/
             git diff --staged --quiet || git commit -m "ci: upload model artifact run ${RUN_ID:0:8} [skip ci]"
-            git push
+            git push origin main
             echo "[INFO] Artifact uploaded to GitHub."
           else
             echo "[WARNING] Model dir not found: $MODEL_SRC"
-            echo "Available mlruns:"
             find MLProject/mlruns -type f | head -30
           fi
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build Docker Model
         run: |
