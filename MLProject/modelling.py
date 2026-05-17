@@ -48,7 +48,8 @@ print(f"[INFO] Setelah SMOTE: {y_train_res.value_counts().to_dict()}")
 # ──────────────────────────────────────────────
 # 4. TRAINING + MANUAL LOGGING
 # ──────────────────────────────────────────────
-with mlflow.start_run(run_name="RandomForest_CI"):
+# mlflow run . sudah membuat active run secara otomatis
+with mlflow.start_run():
 
     model = RandomForestClassifier(
         n_estimators=100,
