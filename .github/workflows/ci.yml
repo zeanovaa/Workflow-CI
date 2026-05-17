@@ -39,56 +39,43 @@ jobs:
 
       - name: Get latest MLflow run_id
         run: |
-          cd MLProject
-          RUN_ID=$(cat run_id.txt)
+          RUN_ID=$(cat MLProject/run_id.txt)
           echo "RUN_ID=$RUN_ID" >> $GITHUB_ENV
           echo "[INFO] Run ID: $RUN_ID"
 
       - name: Install Python dependencies
         run: |
-          pip install google-auth google-auth-oauthlib google-auth-httplib2 google-api-python-client
+          pip install mlflow==2.19.0
 
-      - name: Upload artifact to Google Drive
-        env:
-          GDRIVE_CREDENTIALS: ${{ secrets.GDRIVE_CREDENTIALS }}
+      - name: Upload to GitHub
         run: |
-          cat > upload_gdrive.py << 'PYEOF'
-          import os, json, pickle
-          from google.oauth2 import service_account
-          from googleapiclient.discovery import build
-          from googleapiclient.http import MediaFileUpload
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
-          creds_info = json.loads(os.environ['GDRIVE_CREDENTIALS'])
-          creds = service_account.Credentials.from_service_account_info(
-              creds_info,
-              scopes=['https://www.googleapis.com/auth/drive']
-          )
-          service = build('drive', 'v3', credentials=creds)
+          RUN_ID=${{ env.RUN_ID }}
+          MODEL_SRC="MLProject/mlruns/0/${RUN_ID}/artifacts/model"
 
-          run_id = os.environ.get('RUN_ID', 'unknown')
-          model_path = f"MLProject/mlruns/0/{run_id}/artifacts/model/model.pkl"
-
-          if os.path.exists(model_path):
-              file_metadata = {'name': f'stroke_model_{run_id[:8]}.pkl'}
-              media = MediaFileUpload(model_path, mimetype='application/octet-stream')
-              file = service.files().create(body=file_metadata, media_body=media, fields='id').execute()
-              print(f"[INFO] Model uploaded to Google Drive. File ID: {file.get('id')}")
-          else:
-              print(f"[WARNING] Model file not found at {model_path}")
-              print("[INFO] Available mlruns:")
-              for root, dirs, files in os.walk('MLProject/mlruns'):
-                  for f in files:
-                      print(os.path.join(root, f))
-          PYEOF
-          python upload_gdrive.py
+          if [ -d "$MODEL_SRC" ]; then
+            mkdir -p artifacts
+            cp -r "$MODEL_SRC" artifacts/model_${RUN_ID:0:8}
+            git add artifacts/
+            git diff --staged --quiet || git commit -m "ci: upload model artifact run ${RUN_ID:0:8} [skip ci]"
+            git push
+            echo "[INFO] Artifact uploaded to GitHub."
+          else
+            echo "[WARNING] Model dir not found: $MODEL_SRC"
+            echo "Available mlruns:"
+            find MLProject/mlruns -type f | head -30
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build Docker Model
         run: |
-          cd MLProject
           RUN_ID=${{ env.RUN_ID }}
           echo "[INFO] Building Docker image for run: $RUN_ID"
           mlflow models build-docker \
-            --model-uri "runs:/$RUN_ID/model" \
+            --model-uri "MLProject/mlruns/0/${RUN_ID}/artifacts/model" \
             --name "stroke-prediction" \
             --env-manager=local
 
