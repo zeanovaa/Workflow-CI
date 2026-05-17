@@ -1,1 +1,1 @@
-https://hub.docker.com/r/zeanovaa/stroke-prediction
+https://hub.docker.com/r/zeanova/stroke-prediction
